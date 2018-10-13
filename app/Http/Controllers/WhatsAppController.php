@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use Log;
+use App\User;
 use Buzz\Browser;
+use App\Engine\ProjectMoss;
 use Illuminate\Http\Request;
 use Buzz\Client\FileGetContents;
 
@@ -17,30 +19,35 @@ class WhatsAppController extends Controller
    */
   public function listen(Request $request)
   {
-    // Log::info($request->all());
-    $this->send('27786331190');
+    $payLoad = json_decode($request->all()['data']);
+
+    if (!User::onboard($payLoad->from)) {
+      return $this->send(User::addUser($payLoad->from), $payLoad->from);
+    }
+
+    $user   = User::where('phone_number', $payLoad->from)->first();
+    $engine = new ProjectMoss($user);
+
+    $this->send($engine->read($payLoad->text), $engine->user->phone_number);
   }
 
   /**
    * send message
    *
+   * @param string $message
    * @param mixed $numbers
    * @return void
    */
-  public function send($numbers)
+  private function send($message, $numbers)
   {
     $key = urlencode(config('services.whatsapp.key'));
     $url = config('services.whatsapp.url');
 
     $numbers = urlencode($numbers);
-    $message = urlencode("Hello World!");
+    $message = urlencode($message);
 
     $url = "{$url}?apikey={$key}&number={$numbers}&text={$message}";
     $response = json_decode(file_get_contents($url, false));
-
-    // $client = new FileGetContents([], new Psr17ResponseFactory());
-    // $factory = new Browser($client, new \Psr17RequestFactory());
-    // $response = $factory->get("");
     Log::info('', [$response]);
   }
 }
